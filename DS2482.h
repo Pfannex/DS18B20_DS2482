@@ -101,6 +101,7 @@ private:
 	uint8_t busyWait(bool setReadPtr=false); //blocks until
 	void begin();
 	void end();
+	void deviceName(uint8_t device);
 	
 #if ONEWIRE_SEARCH
 	uint8_t searchAddress[8];
