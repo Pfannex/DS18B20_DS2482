@@ -32,6 +32,16 @@
 #define PTR_READ 0xe1
 #define PTR_CONFIG 0xc3
 
+enum {
+	DS18S20 	= (byte)0x10
+,	DS18B20 	= (byte)0x28
+,	DS1822	= (byte)0x22
+,	DS1825	= (byte)0x3B
+} TemperatureSensors;
+
+enum {
+	DS2406 	= (byte)0x12
+} SwitchSensors;
 
 DS2482::DS2482(uint8_t addr)
 {
@@ -308,7 +318,9 @@ uint8_t DS2482::devicesCount(bool printAddress){
       if (i < 7) SerialNumber += "-";
     }
     if (printAddress){
-      Serial.println(SerialNumber);
+      Serial.print(SerialNumber);
+	 deviceName(address[0]);
+	 Serial.println();
     }
   }
   return count;
@@ -337,6 +349,34 @@ uint8_t DS2482::crc8( uint8_t *addr, uint8_t len)
 		}
 	}
 	return crc;
+}
+
+// tools
+#define getString(type) (String)#type
+
+void DS2482::deviceName(uint8_t device) {
+	String result = "";
+
+	switch(device) {
+		case 	DS18S20:
+			result = getString(DS18S20);
+			break;
+		case DS18B20:
+			result = getString(DS18B20);
+			break;
+		case DS1822:
+			result = getString(DS1822);
+			break;
+		case DS1825:
+			result = getString(DS1825);
+			break;
+		case DS2406:
+			result = getString(DS2406);
+			break;
+	}
+
+	if (result != "")
+		Serial.print(" - " + result);
 }
 
 #endif
