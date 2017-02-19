@@ -72,6 +72,16 @@ uint8_t DS18B20_DS2482::getDeviceCount(void){
 
 // returns true if address is valid
 bool DS18B20_DS2482::validAddress(uint8_t* deviceAddress){
+	switch (deviceAddress[0]) {
+		case DS18S20MODEL:
+		case DS18B20MODEL:
+		case DS1822MODEL:
+		case DS1825MODEL:
+			break;
+		default:
+			return false;
+			break;
+	}
     return (_wire->crc8(deviceAddress, 7) == deviceAddress[7]);
 }
 
