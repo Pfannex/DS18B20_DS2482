@@ -1,7 +1,7 @@
 #ifndef DS18B20_DS2482_h
 #define DS18B20_DS2482_h
 
-#define DALLASTEMPLIBVERSION "3.7.3"
+#define DALLASTEMPLIBVERSION "3.7.7" // To be deprecated
 
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Lesser General Public
@@ -26,6 +26,7 @@
 #define DS18B20MODEL 0x28
 #define DS1822MODEL  0x22
 #define DS1825MODEL  0x3B
+#define DS28EA00MODEL 0x42
 
 // OneWire commands
 #define STARTCONVO      0x44  // Tells device to take a temperature reading and put it on the scratchpad
@@ -76,26 +77,29 @@ public:
     uint8_t getDeviceCount(void);
 
     // returns true if address is valid
-    bool validAddress(uint8_t*);
+    bool validAddress(const uint8_t*);
+
+    // returns true if address is of the family of sensors the lib supports.
+    bool validFamily(const uint8_t* deviceAddress);
 
     // finds an address at a given index on the bus
     bool getAddress(uint8_t*, uint8_t);
 
     // attempt to determine if the device at the given address is connected to the bus
-    bool isConnected(uint8_t*);
+    bool isConnected(const uint8_t*);
 
     // attempt to determine if the device at the given address is connected to the bus
     // also allows for updating the read scratchpad
-    bool isConnected(uint8_t*, uint8_t*);
+    bool isConnected(const uint8_t*, uint8_t*);
 
     // read device's scratchpad
-    bool readScratchPad(uint8_t*, uint8_t*);
+    bool readScratchPad(const uint8_t*, uint8_t*);
 
     // write device's scratchpad
-    void writeScratchPad(uint8_t*, const uint8_t*);
+    void writeScratchPad(const uint8_t*, const uint8_t*);
 
     // read device's power requirements
-    bool readPowerSupply(uint8_t*);
+    bool readPowerSupply(const uint8_t*);
 
     // get global resolution
     uint8_t getResolution();
@@ -104,10 +108,10 @@ public:
     void setResolution(uint8_t);
 
     // returns the device resolution: 9, 10, 11, or 12 bits
-    uint8_t getResolution(uint8_t*);
+    uint8_t getResolution(const uint8_t*);
 
     // set resolution of a device to 9, 10, 11, or 12 bits
-    bool setResolution(uint8_t*, uint8_t);
+    bool setResolution(const uint8_t*, uint8_t, bool skipGlobalBitResolutionCalculation = false);
 
     // sets/gets the waitForConversion flag
     void setWaitForConversion(bool);
@@ -121,19 +125,19 @@ public:
     void requestTemperatures(void);
 
     // sends command for one device to perform a temperature conversion by address
-    bool requestTemperaturesByAddress(uint8_t*);
+    bool requestTemperaturesByAddress(const uint8_t*);
 
     // sends command for one device to perform a temperature conversion by index
     bool requestTemperaturesByIndex(uint8_t);
 
-    // returns temperature raw value (12 bit integer of 1/16 degrees C)
-    int16_t getTemp(uint8_t*);
+    // returns temperature raw value (12 bit integer of 1/128 degrees C)
+    int16_t getTemp(const uint8_t*);
 
     // returns temperature in degrees C
-    float getTempC(uint8_t*);
+    float getTempC(const uint8_t*);
 
     // returns temperature in degrees F
-    float getTempF(uint8_t*);
+    float getTempF(const uint8_t*);
 
     // Get temperature for device index (slow)
     float getTempCByIndex(uint8_t);
@@ -143,8 +147,11 @@ public:
 
     // returns true if the bus requires parasite power
     bool isParasitePowerMode(void);
-
-    bool isConversionAvailable(uint8_t*);
+    
+     // Is a conversion complete on the wire?
+    bool isConversionComplete(void);
+    
+    int16_t millisToWaitForConversion(uint8_t);
 
 #if REQUIRESALARMS
 
@@ -152,19 +159,19 @@ public:
 
     // sets the high alarm temperature for a device
     // accepts a char.  valid range is -55C - 125C
-    void setHighAlarmTemp(uint8_t*, char);
+    void setHighAlarmTemp(const uint8_t*, char);
 
     // sets the low alarm temperature for a device
     // accepts a char.  valid range is -55C - 125C
-    void setLowAlarmTemp(uint8_t*, char);
+    void setLowAlarmTemp(const uint8_t*, char);
 
     // returns a signed char with the current high alarm temperature for a device
     // in the range -55C - 125C
-    char getHighAlarmTemp(uint8_t*);
+    char getHighAlarmTemp(const uint8_t*);
 
     // returns a signed char with the current low alarm temperature for a device
     // in the range -55C - 125C
-    char getLowAlarmTemp(uint8_t*);
+    char getLowAlarmTemp(const uint8_t*);
 
     // resets internal variables used for the alarm search
     void resetAlarmSearch(void);
@@ -173,7 +180,7 @@ public:
     bool alarmSearch(uint8_t*);
 
     // returns true if ia specific device has an alarm
-    bool hasAlarm(uint8_t*);
+    bool hasAlarm(const uint8_t*);
 
     // returns true if any device is reporting an alarm on the bus
     bool hasAlarm(void);
@@ -194,9 +201,9 @@ public:
     // note if device is not connected it will fail writing the data.
     // note if address cannot be found no error will be reported.
     // in short use carefully
-    void setUserData(uint8_t*, int16_t );
+    void setUserData(const uint8_t*, int16_t );
     void setUserDataByIndex(uint8_t, int16_t );
-    int16_t getUserData(uint8_t* );
+    int16_t getUserData(const uint8_t* );
     int16_t getUserDataByIndex(uint8_t );
 
     // convert from Celsius to Fahrenheit
@@ -246,9 +253,7 @@ private:
     // reads scratchpad and returns the raw temperature
     int16_t calculateTemperature(const uint8_t*, uint8_t*);
 
-    int16_t millisToWaitForConversion(uint8_t);
-
-    void	blockTillConversionComplete(uint8_t, uint8_t*);
+    void	blockTillConversionComplete(uint8_t);
 
 #if REQUIRESALARMS
 

@@ -3,9 +3,8 @@
 // License as published by the Free Software Foundation; either
 // version 2.1 of the License, or (at your option) any later version.
 
-// Version 3.7.2 modified on Dec 6, 2011 to support Arduino 1.0
-// See Includes...
-// Modified by Jordan Hochenbaum
+// Version 3.7.7 modified on Mar 12, 2017
+// Modified by Nuno Chaveiro - nchaveiro(at)gmail.com
 
 #include "DS18B20_DS2482.h"
 
@@ -26,6 +25,19 @@ DS18B20_DS2482::DS18B20_DS2482(DS2482* _DS2482)
 #endif
 {
     setOneWire(_DS2482);
+}
+
+bool DS18B20_DS2482::validFamily(const uint8_t* deviceAddress){
+    switch (deviceAddress[0]){
+        case DS18S20MODEL:
+        case DS18B20MODEL:
+        case DS1822MODEL:
+        case DS1825MODEL:
+        case DS28EA00MODEL:
+            return true;
+        default:
+            return false;
+    }
 }
 
 void DS18B20_DS2482::setOneWire(DS2482* _DS2482){
@@ -53,9 +65,9 @@ void DS18B20_DS2482::begin(void){
 
             if (!parasite && readPowerSupply(deviceAddress)) parasite = true;
 
-            ScratchPad scratchPad;
+//            ScratchPad scratchPad;
 
-            readScratchPad(deviceAddress, scratchPad);
+//            readScratchPad(deviceAddress, scratchPad);
 
             bitResolution = max(bitResolution, getResolution(deviceAddress));
 
@@ -71,17 +83,7 @@ uint8_t DS18B20_DS2482::getDeviceCount(void){
 }
 
 // returns true if address is valid
-bool DS18B20_DS2482::validAddress(uint8_t* deviceAddress){
-	switch (deviceAddress[0]) {
-		case DS18S20MODEL:
-		case DS18B20MODEL:
-		case DS1822MODEL:
-		case DS1825MODEL:
-			break;
-		default:
-			return false;
-			break;
-	}
+bool DS18B20_DS2482::validAddress(const uint8_t* deviceAddress){
     return (_wire->crc8(deviceAddress, 7) == deviceAddress[7]);
 }
 
@@ -103,7 +105,7 @@ bool DS18B20_DS2482::getAddress(uint8_t* deviceAddress, uint8_t index){
 }
 
 // attempt to determine if the device at the given address is connected to the bus
-bool DS18B20_DS2482::isConnected(uint8_t* deviceAddress){
+bool DS18B20_DS2482::isConnected(const uint8_t* deviceAddress){
 
     ScratchPad scratchPad;
     return isConnected(deviceAddress, scratchPad);
@@ -112,15 +114,14 @@ bool DS18B20_DS2482::isConnected(uint8_t* deviceAddress){
 
 // attempt to determine if the device at the given address is connected to the bus
 // also allows for updating the read scratchpad
-bool DS18B20_DS2482::isConnected(uint8_t* deviceAddress, uint8_t* scratchPad)
+bool DS18B20_DS2482::isConnected(const uint8_t* deviceAddress, uint8_t* scratchPad)
 {
     bool b = readScratchPad(deviceAddress, scratchPad);
     return b && (_wire->crc8(scratchPad, 8) == scratchPad[SCRATCHPAD_CRC]);
 }
 
-bool DS18B20_DS2482::readScratchPad(uint8_t* deviceAddress, uint8_t* scratchPad){
+bool DS18B20_DS2482::readScratchPad(const uint8_t* deviceAddress, uint8_t* scratchPad){
 
-    //_wire->reset();
 	// send the reset command and fail fast
     int b = _wire->reset();
     if (b == 0) return false;
@@ -147,11 +148,10 @@ bool DS18B20_DS2482::readScratchPad(uint8_t* deviceAddress, uint8_t* scratchPad)
 
     b = _wire->reset();
     return (b == 1);
-	//return 1;
 }
 
 
-void DS18B20_DS2482::writeScratchPad(uint8_t* deviceAddress, const uint8_t* scratchPad){
+void DS18B20_DS2482::writeScratchPad(const uint8_t* deviceAddress, const uint8_t* scratchPad){
 
     _wire->reset();
     _wire->wireSelect(deviceAddress);
@@ -163,9 +163,9 @@ void DS18B20_DS2482::writeScratchPad(uint8_t* deviceAddress, const uint8_t* scra
     if (deviceAddress[0] != DS18S20MODEL) _wire->wireWriteByte(scratchPad[CONFIGURATION]);
 
     _wire->reset();
-    _wire->wireSelect(deviceAddress);
 
     // save the newly written values to eeprom
+    _wire->wireSelect(deviceAddress);
     //_wire->wireWriteByte(COPYSCRATCH, parasite);
 	_wire->wireWriteByte(COPYSCRATCH);
     delay(20);  // <--- added 20ms delay to allow 10ms long EEPROM write operation (as specified by datasheet)
@@ -175,7 +175,7 @@ void DS18B20_DS2482::writeScratchPad(uint8_t* deviceAddress, const uint8_t* scra
 
 }
 
-bool DS18B20_DS2482::readPowerSupply(uint8_t* deviceAddress){
+bool DS18B20_DS2482::readPowerSupply(const uint8_t* deviceAddress){
 
     bool ret = false;
     _wire->reset();
@@ -197,14 +197,20 @@ void DS18B20_DS2482::setResolution(uint8_t newResolution){
     for (int i=0; i<devices; i++)
     {
         getAddress(deviceAddress, i);
-        setResolution(deviceAddress, bitResolution);
+        setResolution(deviceAddress, bitResolution, true);
     }
 
 }
 
 // set resolution of a device to 9, 10, 11, or 12 bits
 // if new resolution is out of range, 9 bits is used.
-bool DS18B20_DS2482::setResolution(uint8_t* deviceAddress, uint8_t newResolution){
+bool DS18B20_DS2482::setResolution(const uint8_t* deviceAddress, uint8_t newResolution, bool skipGlobalBitResolutionCalculation){
+
+	// ensure same behavior as setResolution(uint8_t newResolution)
+	newResolution = constrain(newResolution, 9, 12);
+			
+    // return when stored value == new value
+    if(getResolution(deviceAddress) == newResolution) return true;
 
     ScratchPad scratchPad;
     if (isConnected(deviceAddress, scratchPad)){
@@ -228,6 +234,19 @@ bool DS18B20_DS2482::setResolution(uint8_t* deviceAddress, uint8_t newResolution
                 break;
             }
             writeScratchPad(deviceAddress, scratchPad);
+
+            // without calculation we can always set it to max
+			bitResolution = max(bitResolution, newResolution);
+			
+			if(!skipGlobalBitResolutionCalculation && (bitResolution > newResolution)){
+				bitResolution = newResolution;
+				DeviceAddress deviceAddr;
+				for (int i=0; i<devices; i++)
+				{
+					getAddress(deviceAddr, i);
+					bitResolution = max(bitResolution, getResolution(deviceAddr));
+				}
+			}
         }
         return true;  // new value set
     }
@@ -243,7 +262,7 @@ uint8_t DS18B20_DS2482::getResolution(){
 
 // returns the current resolution of the device, 9-12
 // returns 0 if device not found
-uint8_t DS18B20_DS2482::getResolution(uint8_t* deviceAddress){
+uint8_t DS18B20_DS2482::getResolution(const uint8_t* deviceAddress){
 
     // DS1820 and DS18S20 have no resolution configuration register
     if (deviceAddress[0] == DS18S20MODEL) return 12;
@@ -298,13 +317,10 @@ bool DS18B20_DS2482::getCheckForConversion(){
     return checkForConversion;
 }
 
-bool DS18B20_DS2482::isConversionAvailable(uint8_t* deviceAddress){
-
-    // Check if the clock has been raised indicating the conversion is complete
-    ScratchPad scratchPad;
-    readScratchPad(deviceAddress, scratchPad);
-    return scratchPad[0];
-
+bool DS18B20_DS2482::isConversionComplete()
+{
+   uint8_t b = _wire->wireReadBit();
+   return (b == 1);
 }
 
 // sends command for all devices on the bus to perform a temperature conversion
@@ -317,14 +333,14 @@ void DS18B20_DS2482::requestTemperatures(){
 
     // ASYNC mode?
     if (!waitForConversion) return;
-    blockTillConversionComplete(bitResolution, NULL);
+    blockTillConversionComplete(bitResolution);
 
 }
 
 // sends command for one device to perform a temperature by address
 // returns FALSE if device is disconnected
 // returns TRUE  otherwise
-bool DS18B20_DS2482::requestTemperaturesByAddress(uint8_t* deviceAddress){
+bool DS18B20_DS2482::requestTemperaturesByAddress(const uint8_t* deviceAddress){
 
     uint8_t bitResolution = getResolution(deviceAddress);
     if (bitResolution == 0){
@@ -343,7 +359,7 @@ bool DS18B20_DS2482::requestTemperaturesByAddress(uint8_t* deviceAddress){
     // ASYNC mode?
     if (!waitForConversion) return true;
 
-    blockTillConversionComplete(bitResolution, deviceAddress);
+    blockTillConversionComplete(bitResolution);
 
     return true;
 
@@ -351,12 +367,12 @@ bool DS18B20_DS2482::requestTemperaturesByAddress(uint8_t* deviceAddress){
 
 
 // Continue to check if the IC has responded with a temperature
-void DS18B20_DS2482::blockTillConversionComplete(uint8_t bitResolution, uint8_t* deviceAddress){
+void DS18B20_DS2482::blockTillConversionComplete(uint8_t bitResolution){
     
     int delms = millisToWaitForConversion(bitResolution);
-    if (deviceAddress != NULL && checkForConversion && !parasite){
+    if (checkForConversion && !parasite){
         unsigned long now = millis();
-        while(!isConversionAvailable(deviceAddress) && (millis() - delms < now));
+        while(!isConversionComplete() && (millis() - delms < now));
     } else {
         delay(delms);
     }
@@ -464,7 +480,7 @@ int16_t DS18B20_DS2482::calculateTemperature(const uint8_t* deviceAddress, uint8
 // the numeric value of DEVICE_DISCONNECTED_RAW is defined in
 // DS18B20_DS2482.h. It is a large negative number outside the
 // operating range of the device
-int16_t DS18B20_DS2482::getTemp(uint8_t* deviceAddress){
+int16_t DS18B20_DS2482::getTemp(const uint8_t* deviceAddress){
 
     ScratchPad scratchPad;
     if (isConnected(deviceAddress, scratchPad)) return calculateTemperature(deviceAddress, scratchPad);
@@ -477,7 +493,7 @@ int16_t DS18B20_DS2482::getTemp(uint8_t* deviceAddress){
 // the numeric value of DEVICE_DISCONNECTED_C is defined in
 // DS18B20_DS2482.h. It is a large negative number outside the
 // operating range of the device
-float DS18B20_DS2482::getTempC(uint8_t* deviceAddress){
+float DS18B20_DS2482::getTempC(const uint8_t* deviceAddress){
     return rawToCelsius(getTemp(deviceAddress));
 }
 
@@ -486,7 +502,7 @@ float DS18B20_DS2482::getTempC(uint8_t* deviceAddress){
 // the numeric value of DEVICE_DISCONNECTED_F is defined in
 // DS18B20_DS2482.h. It is a large negative number outside the
 // operating range of the device
-float DS18B20_DS2482::getTempF(uint8_t* deviceAddress){
+float DS18B20_DS2482::getTempF(const uint8_t* deviceAddress){
     return rawToFahrenheit(getTemp(deviceAddress));
 }
 
@@ -501,8 +517,11 @@ bool DS18B20_DS2482::isParasitePowerMode(void){
 // See github issue #29
 
 // note if device is not connected it will fail writing the data.
-void DS18B20_DS2482::setUserData(uint8_t* deviceAddress, int16_t data)
+void DS18B20_DS2482::setUserData(const uint8_t* deviceAddress, int16_t data)
 {
+    // return when stored value == new value
+    if(getUserData(deviceAddress) == data) return;
+
     ScratchPad scratchPad;
     if (isConnected(deviceAddress, scratchPad))
     {
@@ -512,7 +531,7 @@ void DS18B20_DS2482::setUserData(uint8_t* deviceAddress, int16_t data)
     }
 }
 
-int16_t DS18B20_DS2482::getUserData(uint8_t* deviceAddress)
+int16_t DS18B20_DS2482::getUserData(const uint8_t* deviceAddress)
 {
     int16_t data = 0;
     ScratchPad scratchPad;
@@ -596,7 +615,10 @@ the next temperature conversion.
 // sets the high alarm temperature for a device in degrees Celsius
 // accepts a float, but the alarm resolution will ignore anything
 // after a decimal point.  valid range is -55C - 125C
-void DS18B20_DS2482::setHighAlarmTemp(uint8_t* deviceAddress, char celsius){
+void DS18B20_DS2482::setHighAlarmTemp(const uint8_t* deviceAddress, char celsius){
+
+    // return when stored value == new value
+    if(getHighAlarmTemp(deviceAddress) == celsius) return;
 
     // make sure the alarm temperature is within the device's range
     if (celsius > 125) celsius = 125;
@@ -613,7 +635,11 @@ void DS18B20_DS2482::setHighAlarmTemp(uint8_t* deviceAddress, char celsius){
 // sets the low alarm temperature for a device in degrees Celsius
 // accepts a float, but the alarm resolution will ignore anything
 // after a decimal point.  valid range is -55C - 125C
-void DS18B20_DS2482::setLowAlarmTemp(uint8_t* deviceAddress, char celsius){
+void DS18B20_DS2482::setLowAlarmTemp(const uint8_t* deviceAddress, char celsius){
+    
+    // return when stored value == new value
+    if(getLowAlarmTemp(deviceAddress) == celsius) return;
+
     // make sure the alarm temperature is within the device's range
     if (celsius > 125) celsius = 125;
     else if (celsius < -55) celsius = -55;
@@ -628,7 +654,7 @@ void DS18B20_DS2482::setLowAlarmTemp(uint8_t* deviceAddress, char celsius){
 
 // returns a char with the current high alarm temperature or
 // DEVICE_DISCONNECTED for an address
-char DS18B20_DS2482::getHighAlarmTemp(uint8_t* deviceAddress){
+char DS18B20_DS2482::getHighAlarmTemp(const uint8_t* deviceAddress){
 
     ScratchPad scratchPad;
     if (isConnected(deviceAddress, scratchPad)) return (char)scratchPad[HIGH_ALARM_TEMP];
@@ -638,7 +664,7 @@ char DS18B20_DS2482::getHighAlarmTemp(uint8_t* deviceAddress){
 
 // returns a char with the current low alarm temperature or
 // DEVICE_DISCONNECTED for an address
-char DS18B20_DS2482::getLowAlarmTemp(uint8_t* deviceAddress){
+char DS18B20_DS2482::getLowAlarmTemp(const uint8_t* deviceAddress){
 
     ScratchPad scratchPad;
     if (isConnected(deviceAddress, scratchPad)) return (char)scratchPad[LOW_ALARM_TEMP];
