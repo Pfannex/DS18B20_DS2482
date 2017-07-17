@@ -5,7 +5,7 @@
 
 // Version 3.7.2 modified on Dec 6, 2011 to support Arduino 1.0
 // See Includes...
-// Modified by Jordan Hochenbaum
+// Modified by Jordan Hochenbaum 
 
 #include "DS18B20_DS2482.h"
 
