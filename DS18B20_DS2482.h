@@ -1,7 +1,6 @@
 #ifndef DS18B20_DS2482_h
 #define DS18B20_DS2482_h
 
-
 #define DALLASTEMPLIBVERSION "3.7.3"
 
 // This library is free software; you can redistribute it and/or
